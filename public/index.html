@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Librería & Papelería Nova - POS y Estadísticas de Demanda</title>
+  <meta name="description" content="Sistema de gestión para librería con punto de venta, control de inventario y estadísticas avanzadas de demanda de productos.">
+  <link rel="stylesheet" href="/css/styles.css">
+  <!-- Chart.js para visualizaciones de demanda -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Barra de Navegación Superior -->
+  <header class="navbar">
+    <a href="#" class="brand" id="brand-home">
+      <div class="brand-icon">📚</div>
+      <div class="brand-info">
+        <h1>Librería Nova</h1>
+        <span>POS & Control de Demanda</span>
+      </div>
+    </a>
+
+    <!-- Pestañas de Navegación Principal -->
+    <nav class="nav-tabs">
+      <button class="nav-btn active" data-target="section-pos" id="tab-pos">
+        🛒 Punto de Venta
+        <span class="badge-pill" id="badge-cart-count">0</span>
+      </button>
+      <button class="nav-btn" data-target="section-stats" id="tab-stats">
+        📊 Estadísticas de Demanda
+      </button>
+      <button class="nav-btn" data-target="section-inventory" id="tab-inventory">
+        📦 Inventario
+      </button>
+    </nav>
+
+    <!-- Estado y Acciones -->
+    <div class="nav-actions">
+      <div class="status-pill" id="system-status-indicator" title="Estado de la base de datos">
+        <span class="status-dot"></span>
+        <span id="system-status-text">Conectado</span>
+      </div>
+      <button class="btn btn-primary" id="btn-open-new-product">
+        <span>+</span> Nuevo Producto
+      </button>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal de la Aplicación -->
+  <main class="main-wrapper">
+
+    <!-- ========================================================
+         MÓDULO 1: PUNTO DE VENTA (REGISTRO DE VENTAS)
+         ======================================================== -->
+    <section id="section-pos" class="module-section active">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">🛒 Registro de Ventas (POS)</h2>
+          <p class="section-subtitle">Selecciona o busca productos por código o título para generar tickets y descontar stock automáticamente.</p>
+        </div>
+      </div>
+
+      <div class="pos-layout">
+        <!-- Catálogo de Productos y Filtros -->
+        <div class="pos-catalog-panel">
+          <div class="search-filters-bar">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="pos-search-input" placeholder="Buscar por código (ej: LIB-101) o nombre del libro..." autocomplete="off">
+            </div>
+          </div>
+
+          <!-- Píldoras de Categorías -->
+          <div class="category-pills" id="pos-category-pills">
+            <button class="cat-pill active" data-category="Todas">Todas</button>
+            <button class="cat-pill" data-category="Libros y Literatura">Libros y Literatura</button>
+            <button class="cat-pill" data-category="Papelería y Cuadernos">Papelería y Cuadernos</button>
+            <button class="cat-pill" data-category="Útiles de Escritorio">Útiles de Escritorio</button>
+            <button class="cat-pill" data-category="Útiles Escolares y Técnicos">Útiles Escolares</button>
+            <button class="cat-pill" data-category="Arte y Bellas Artes">Arte y Bellas Artes</button>
+          </div>
+
+          <!-- Cuadrícula de Productos -->
+          <div class="product-grid" id="pos-product-grid">
+            <!-- Renderizado dinámicamente mediante pos.js -->
+          </div>
+        </div>
+
+        <!-- Ticket de Venta / Carrito Lateral -->
+        <div class="pos-ticket-panel">
+          <div class="ticket-header">
+            <h3><span>🧾</span> Ticket de Venta</h3>
+            <button class="btn btn-danger btn-icon" id="btn-clear-cart" title="Vaciar Ticket">🗑️</button>
+          </div>
+
+          <!-- Lista de Ítems en el Ticket -->
+          <div class="ticket-items-list" id="ticket-items-container">
+            <div class="empty-ticket">
+              <div class="empty-ticket-icon">🛍️</div>
+              <p>El ticket está vacío</p>
+              <small>Agrega productos del catálogo para comenzar la venta</small>
+            </div>
+          </div>
+
+          <!-- Formulario del Cliente y Método de Pago -->
+          <div class="ticket-form">
+            <div class="form-group">
+              <label class="form-label">Cliente (Opcional)</label>
+              <input type="text" id="client-name" class="form-input" placeholder="Nombre o Razón Social" value="Cliente Mostrador">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Método de Pago</label>
+              <select id="payment-method" class="form-select">
+                <option value="Efectivo" selected>💵 Efectivo</option>
+                <option value="Tarjeta de Débito">💳 Tarjeta de Débito</option>
+                <option value="Tarjeta de Crédito">💳 Tarjeta de Crédito</option>
+                <option value="Transferencia / Yape">📱 Transferencia / Yape / Plin</option>
+              </select>
+            </div>
+
+            <!-- Resumen Financiero del Ticket -->
+            <div class="ticket-summary">
+              <div class="summary-row">
+                <span>Subtotal:</span>
+                <span id="ticket-subtotal">S/ 0.00</span>
+              </div>
+              <div class="summary-row">
+                <span>Impuesto (IGV 0% Libros):</span>
+                <span>S/ 0.00</span>
+              </div>
+              <div class="summary-row total-row">
+                <span>TOTAL A COBRAR:</span>
+                <span id="ticket-total">S/ 0.00</span>
+              </div>
+              <div class="summary-profit-badge">
+                <span>Margen Bruto Estimado:</span>
+                <span id="ticket-profit">S/ 0.00 (+0%)</span>
+              </div>
+            </div>
+
+            <!-- Botón de Confirmación -->
+            <div class="ticket-actions">
+              <button class="btn btn-secondary" id="btn-cancel-ticket">Cancelar</button>
+              <button class="btn btn-success" id="btn-complete-sale" disabled>
+                <span>⚡</span> Cobrar Venta
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ========================================================
+         MÓDULO 2: ESTADÍSTICAS DE DEMANDA DE PRODUCTOS
+         ======================================================== -->
+    <section id="section-stats" class="module-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📊 Estadísticas de Demanda de Productos</h2>
+          <p class="section-subtitle">Análisis predictivo de rotación, productos con mayor demanda, rentabilidad y alertas tempranas de reabastecimiento.</p>
+        </div>
+        <div class="stats-controls">
+          <select id="stats-period-select" class="form-select">
+            <option value="7">Últimos 7 días</option>
+            <option value="14" selected>Últimos 14 días</option>
+            <option value="30">Últimos 30 días</option>
+            <option value="90">Histórico Completo</option>
+          </select>
+          <button class="btn btn-secondary" id="btn-refresh-stats">🔄 Actualizar</button>
+        </div>
+      </div>
+
+      <!-- Tarjetas de KPIs Principales -->
+      <div class="kpis-grid">
+        <div class="kpi-card" style="--card-accent: var(--accent-emerald);">
+          <div class="kpi-card-header">
+            <span class="kpi-title">Ingresos por Ventas</span>
+            <div class="kpi-icon">💰</div>
+          </div>
+          <div class="kpi-value" id="kpi-total-ingresos">S/ 0.00</div>
+          <div class="kpi-subtext" id="kpi-transacciones-subtext">0 transacciones procesadas</div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: var(--primary);">
+          <div class="kpi-card-header">
+            <span class="kpi-title">Ganancia Neta & Margen</span>
+            <div class="kpi-icon">📈</div>
+          </div>
+          <div class="kpi-value" id="kpi-total-ganancia">S/ 0.00</div>
+          <div class="kpi-subtext" id="kpi-margen-subtext">Margen promedio: 0%</div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: var(--accent-cyan);">
+          <div class="kpi-card-header">
+            <span class="kpi-title">Unidades Demandadas</span>
+            <div class="kpi-icon">📦</div>
+          </div>
+          <div class="kpi-value" id="kpi-unidades-vendidas">0</div>
+          <div class="kpi-subtext">Artículos vendidos en el período</div>
+        </div>
+
+        <div class="kpi-card" style="--card-accent: var(--accent-violet);">
+          <div class="kpi-card-header">
+            <span class="kpi-title">Valor del Stock Actual</span>
+            <div class="kpi-icon">📚</div>
+          </div>
+          <div class="kpi-value" id="kpi-valor-inventario">S/ 0.00</div>
+          <div class="kpi-subtext" id="kpi-stock-unidades-subtext">0 unidades en almacén</div>
+        </div>
+      </div>
+
+      <!-- Gráficos Principales -->
+      <div class="charts-grid">
+        <!-- Gráfico 1: Ranking de Demanda por Producto -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3 class="chart-title">🏆 Top Productos Más Demandados (Unidades Vendidas)</h3>
+            <span class="badge-stock-ok urgency-badge">Alta Rotación</span>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-top-demand"></canvas>
+          </div>
+        </div>
+
+        <!-- Gráfico 2: Demanda por Categoría -->
+        <div class="chart-card">
+          <div class="chart-card-header">
+            <h3 class="chart-title">🏷️ Demanda por Categoría</h3>
+          </div>
+          <div class="chart-container">
+            <canvas id="chart-category-demand"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gráfico 3: Tendencia Temporal -->
+      <div class="chart-card" style="margin-bottom: 2rem;">
+        <div class="chart-card-header">
+          <h3 class="chart-title">📈 Curva Temporal de Demanda e Ingresos Diarios</h3>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Comportamiento día a día</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-timeline-demand"></canvas>
+        </div>
+      </div>
+
+      <!-- Tablas: Alertas de Reabastecimiento y Ranking Completo -->
+      <div class="tables-grid">
+        <!-- Tabla 1: Alertas de Reabastecimiento Crítico -->
+        <div class="table-card">
+          <div class="chart-card-header">
+            <h3 class="chart-title">⚠️ Alertas de Reabastecimiento Predictivo</h3>
+            <span class="urgency-badge urgency-critico" id="badge-alertas-count">0 alertas</span>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Productos con velocidad de compra continua y stock crítico en peligro de quiebre de inventario.
+          </p>
+          <div class="table-responsive">
+            <table class="custom-table" id="table-restock-alerts">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Stock Actual</th>
+                  <th>Urgencia</th>
+                  <th>Sugerencia</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-restock-alerts">
+                <!-- Inyectado por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tabla 2: Ranking Detallado de Demanda -->
+        <div class="table-card">
+          <div class="chart-card-header">
+            <h3 class="chart-title">📋 Rendimiento por Producto</h3>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Unidades vs Ingresos</span>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Desglose completo de ventas, rentabilidad y unidades despachadas.
+          </p>
+          <div class="table-responsive">
+            <table class="custom-table" id="table-demand-ranking">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Producto</th>
+                  <th>Vendidos</th>
+                  <th>Ingresos</th>
+                  <th>Ganancia</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-demand-ranking">
+                <!-- Inyectado por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ========================================================
+         MÓDULO 3: GESTIÓN DE INVENTARIO (CATÁLOGO DE PRODUCTOS)
+         ======================================================== -->
+    <section id="section-inventory" class="module-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📦 Catálogo de Productos e Inventario</h2>
+          <p class="section-subtitle">Gestión completa de artículos con código único, precios de compra/venta, stock entero positivo y foto PNG.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-inventory-add-product">
+          <span>+</span> Registrar Nuevo Producto
+        </button>
+      </div>
+
+      <div class="table-card">
+        <div class="search-filters-bar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="inventory-search-input" placeholder="Filtrar por código o nombre...">
+          </div>
+          <select id="inventory-category-select" class="form-select" style="max-width: 240px;">
+            <option value="Todas">Todas las Categorías</option>
+            <option value="Libros y Literatura">Libros y Literatura</option>
+            <option value="Papelería y Cuadernos">Papelería y Cuadernos</option>
+            <option value="Útiles de Escritorio">Útiles de Escritorio</option>
+            <option value="Útiles Escolares y Técnicos">Útiles Escolares</option>
+            <option value="Arte y Bellas Artes">Arte y Bellas Artes</option>
+          </select>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table" id="table-inventory-products">
+            <thead>
+              <tr>
+                <th>Foto</th>
+                <th>Código</th>
+                <th>Nombre del Producto</th>
+                <th>Categoría</th>
+                <th>P. Compra</th>
+                <th>P. Venta</th>
+                <th>Margen</th>
+                <th>Stock</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-inventory-products">
+              <!-- Renderizado por inventory.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+
+  <!-- ========================================================
+       MODAL 1: REGISTRO / EDICIÓN DE PRODUCTO
+       ======================================================== -->
+  <div class="modal-backdrop" id="modal-product-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-product-title">📦 Nuevo Producto de Librería</h3>
+        <button class="modal-close" id="btn-close-product-modal">&times;</button>
+      </div>
+      <form id="form-product" class="modal-body" enctype="multipart/form-data">
+        <input type="hidden" id="prod-id" name="id">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+          <div class="form-group">
+            <label class="form-label" for="prod-code">Código Único (SKU) *</label>
+            <input type="text" id="prod-code" name="codigo" class="form-input" placeholder="Ej: LIB-104 o PAP-205" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prod-category">Categoría *</label>
+            <select id="prod-category" name="categoria" class="form-select" required>
+              <option value="Libros y Literatura">Libros y Literatura</option>
+              <option value="Papelería y Cuadernos">Papelería y Cuadernos</option>
+              <option value="Útiles de Escritorio">Útiles de Escritorio</option>
+              <option value="Útiles Escolares y Técnicos">Útiles Escolares y Técnicos</option>
+              <option value="Arte y Bellas Artes">Arte y Bellas Artes</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="prod-name">Nombre del Producto / Libro *</label>
+          <input type="text" id="prod-name" name="nombre" class="form-input" placeholder="Ej: Rayuela - Julio Cortázar" required>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" for="prod-desc">Descripción (Opcional)</label>
+          <textarea id="prod-desc" name="descripcion" class="form-input" rows="2" placeholder="Detalles de la edición, encuadernación o especificaciones..."></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem;">
+          <div class="form-group">
+            <label class="form-label" for="prod-cost">P. Compra (S/) *</label>
+            <input type="number" id="prod-cost" name="precio_compra" class="form-input" step="0.01" min="0" placeholder="25.00" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prod-price">P. Venta (S/) *</label>
+            <input type="number" id="prod-price" name="precio_venta" class="form-input" step="0.01" min="0.1" placeholder="42.50" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="prod-stock">Stock (Entero +) *</label>
+            <input type="number" id="prod-stock" name="stock" class="form-input" step="1" min="0" placeholder="20" required>
+          </div>
+        </div>
+
+        <!-- Sección de Foto PNG -->
+        <div class="form-group" style="background: rgba(0,0,0,0.25); padding: 1rem; border-radius: var(--radius-md); border: 1px dashed var(--border-strong);">
+          <label class="form-label" style="color: var(--accent-cyan);">Foto del Producto (Formato PNG Requerido)</label>
+          
+          <div style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
+            <!-- Vista Previa de la Foto PNG -->
+            <div style="width: 72px; height: 72px; border-radius: var(--radius-md); background: #0a0e17; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0;">
+              <img id="preview-prod-img" src="/uploads/lib-101.png" alt="Vista previa PNG" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+
+            <div style="flex: 1;">
+              <label for="prod-photo-file" style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">
+                Subir archivo .PNG desde tu dispositivo:
+              </label>
+              <input type="file" id="prod-photo-file" name="foto" accept="image/png" class="form-input" style="padding: 0.35rem;">
+              
+              <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem; align-items: center;">
+                <span style="font-size: 0.72rem; color: var(--text-muted);">o seleccionar plantilla PNG:</span>
+                <select id="prod-preset-photo" name="preset_foto" class="form-select" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">
+                  <option value="/uploads/lib-101.png">Libro Azul Marino</option>
+                  <option value="/uploads/lib-102.png">Libro Cyan / Lujo</option>
+                  <option value="/uploads/lib-103.png">Libro Clásico Cuero</option>
+                  <option value="/uploads/pap-201.png">Cuaderno Verde Esmeralda</option>
+                  <option value="/uploads/pap-202.png">Libreta Moleskine</option>
+                  <option value="/uploads/uti-301.png">Bolígrafos Gel</option>
+                  <option value="/uploads/uti-302.png">Resaltadores Pastel</option>
+                  <option value="/uploads/uti-303.png">Calculadora Científica</option>
+                  <option value="/uploads/art-401.png">Acuarelas Profesionales</option>
+                  <option value="/uploads/art-402.png">Bloc Canson A4</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="padding: 1rem 0 0; margin-top: 1.25rem;">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-modal-prod">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-prod">Guardar Producto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+
+  <!-- ========================================================
+       MODAL 2: COMPROBANTE DE VENTA (TICKET IMPRIMIBLE)
+       ======================================================== -->
+  <div class="modal-backdrop" id="modal-receipt-backdrop">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>🧾 Venta Exitosa</h3>
+        <button class="modal-close" id="btn-close-receipt-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="receipt-paper" id="printable-receipt">
+          <div class="receipt-center">
+            <div class="receipt-title">LIBRERÍA & PAPELERÍA NOVA</div>
+            <small>RUC: 20601234567 | Av. La Cultura 450</small><br>
+            <small>Tel: (01) 456-7890 | Lima, Perú</small>
+            <div class="receipt-divider"></div>
+            <strong id="receipt-ticket-number">TICKET: TKT-000000</strong><br>
+            <span id="receipt-date">Fecha: --/--/---- --:--</span>
+          </div>
+
+          <div>
+            <strong>Cliente:</strong> <span id="receipt-client">Cliente Mostrador</span><br>
+            <strong>Método de Pago:</strong> <span id="receipt-payment">Efectivo</span>
+          </div>
+
+          <div class="receipt-divider"></div>
+
+          <table class="receipt-table">
+            <thead>
+              <tr style="border-bottom: 1px dashed #64748b;">
+                <th style="text-align: left;">Cant</th>
+                <th style="text-align: left;">Descripción</th>
+                <th style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody id="receipt-items-tbody">
+              <!-- Ítems del ticket -->
+            </tbody>
+          </table>
+
+          <div class="receipt-divider"></div>
+
+          <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.05rem;">
+            <span>TOTAL PAGADO:</span>
+            <span id="receipt-total">S/ 0.00</span>
+          </div>
+
+          <div class="receipt-divider"></div>
+          <div class="receipt-center" style="font-size: 0.75rem; color: #64748b; margin-top: 0.5rem;">
+            ¡Gracias por apoyar la lectura y la cultura!<br>
+            Conserve este comprobante para cambios o reclamos.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btn-close-receipt">Cerrar</button>
+        <button class="btn btn-primary" id="btn-print-receipt">
+          <span>🖨️</span> Imprimir Ticket
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Contenedor para Notificaciones Toast -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts Modulares del Frontend -->
+  <script src="/js/api.js"></script>
+  <script src="/js/pos.js"></script>
+  <script src="/js/stats.js"></script>
+  <script src="/js/inventory.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
