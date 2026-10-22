@@ -172,7 +172,14 @@ const Database = {
         }
         const { data, error } = await query;
         if (error) throw error;
-        return data;
+        if (data && data.length > 0) {
+          return data;
+        }
+        // Si Supabase aún no tiene registros, usar datos de catálogo local como respaldo
+        if (data && data.length === 0 && !filters.search && (!filters.category || filters.category === 'Todas')) {
+          return localStore.productos;
+        }
+        return data || [];
       } catch (err) {
         console.warn('Fallo consulta a Supabase, recurriendo a local:', err.message);
       }
@@ -242,7 +249,7 @@ const Database = {
       throw new Error('El precio de venta debe ser un número positivo.');
     }
 
-    const newProd = {
+    const cleanPayload = {
       id: crypto.randomUUID(),
       codigo: cleanCode,
       nombre: productData.nombre.trim(),
@@ -251,27 +258,31 @@ const Database = {
       precio_compra: Math.round(precioCompra * 100) / 100,
       precio_venta: Math.round(precioVenta * 100) / 100,
       stock: stock,
-      foto_url: productData.foto_url || '/uploads/lib-101.png',
+      foto_url: productData.foto_url || productData.preset_foto || '/uploads/lib-101.png',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
     if (this.isSupabaseActive()) {
       try {
-        const { data, error } = await supabase.from('productos').insert([newProd]).select().single();
-        if (error) throw error;
+        const { data, error } = await supabase.from('productos').insert([cleanPayload]).select().single();
+        if (error) {
+          console.error('Error insertando en Supabase:', error.message);
+          throw new Error('Error en Supabase: ' + error.message);
+        }
         // Keep local mirror updated
         localStore.productos.unshift(data);
         saveLocalStore();
         return data;
       } catch (err) {
-        console.warn('Error insertando en Supabase, guardando localmente:', err.message);
+        console.error('Error en Supabase createProduct:', err.message);
+        throw err;
       }
     }
 
-    localStore.productos.unshift(newProd);
+    localStore.productos.unshift(cleanPayload);
     saveLocalStore();
-    return newProd;
+    return cleanPayload;
   },
 
   async updateProduct(id, updates) {
@@ -287,32 +298,55 @@ const Database = {
       }
     }
 
-    const updated = {
-      ...existing,
-      ...updates,
-      codigo: updates.codigo ? updates.codigo.trim().toUpperCase() : existing.codigo,
-      precio_compra: updates.precio_compra !== undefined ? parseFloat(updates.precio_compra) : existing.precio_compra,
-      precio_venta: updates.precio_venta !== undefined ? parseFloat(updates.precio_venta) : existing.precio_venta,
-      stock: updates.stock !== undefined ? parseInt(updates.stock, 10) : existing.stock,
-      updated_at: new Date().toISOString()
-    };
-
-    if (updated.stock < 0 || isNaN(updated.stock)) {
+    const stock = updates.stock !== undefined ? parseInt(updates.stock, 10) : existing.stock;
+    if (stock < 0 || isNaN(stock)) {
       throw new Error('El stock debe ser un entero positivo o cero.');
     }
 
+    const precioCompra = updates.precio_compra !== undefined ? parseFloat(updates.precio_compra) : existing.precio_compra;
+    const precioVenta = updates.precio_venta !== undefined ? parseFloat(updates.precio_venta) : existing.precio_venta;
+
+    // Payload limpio conteniendo ÚNICAMENTE las columnas existentes en Supabase
+    const cleanPayload = {
+      codigo: updates.codigo ? updates.codigo.trim().toUpperCase() : existing.codigo,
+      nombre: updates.nombre !== undefined ? updates.nombre.trim() : existing.nombre,
+      descripcion: updates.descripcion !== undefined ? (updates.descripcion || '').trim() : existing.descripcion,
+      categoria: updates.categoria || existing.categoria,
+      precio_compra: isNaN(precioCompra) ? existing.precio_compra : Math.round(precioCompra * 100) / 100,
+      precio_venta: isNaN(precioVenta) ? existing.precio_venta : Math.round(precioVenta * 100) / 100,
+      stock: stock,
+      foto_url: updates.foto_url || updates.preset_foto || existing.foto_url,
+      updated_at: new Date().toISOString()
+    };
+
     if (this.isSupabaseActive()) {
       try {
-        const { data, error } = await supabase.from('productos').update(updated).eq('id', id).select().single();
-        if (error) throw error;
+        const { data, error } = await supabase
+          .from('productos')
+          .update(cleanPayload)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error actualizando en Supabase:', error.message);
+          throw new Error('Error en Supabase: ' + error.message);
+        }
+
         const idx = localStore.productos.findIndex(p => p.id === id);
         if (idx !== -1) localStore.productos[idx] = data;
         saveLocalStore();
         return data;
       } catch (err) {
-        console.warn('Error actualizando en Supabase:', err.message);
+        console.error('Error en Supabase updateProduct:', err.message);
+        throw err;
       }
     }
+
+    const updated = {
+      ...existing,
+      ...cleanPayload
+    };
 
     const idx = localStore.productos.findIndex(p => p.id === id);
     if (idx !== -1) {
@@ -326,9 +360,13 @@ const Database = {
     if (this.isSupabaseActive()) {
       try {
         const { error } = await supabase.from('productos').delete().eq('id', id);
-        if (error) throw error;
+        if (error) {
+          console.error('Error eliminando en Supabase:', error.message);
+          throw new Error('Error en Supabase: ' + error.message);
+        }
       } catch (err) {
-        console.warn('Error eliminando de Supabase:', err.message);
+        console.error('Error en Supabase deleteProduct:', err.message);
+        throw err;
       }
     }
     localStore.productos = localStore.productos.filter(p => p.id !== id);
@@ -500,6 +538,20 @@ const Database = {
 
   async getSales(options = {}) {
     const limit = options.limit || 50;
+    if (this.isSupabaseActive()) {
+      try {
+        const { data, error } = await supabase
+          .from('ventas')
+          .select('*, items:detalle_ventas(*)')
+          .order('fecha', { ascending: false })
+          .limit(limit);
+        if (!error && data && data.length > 0) {
+          return data;
+        }
+      } catch (err) {
+        console.warn('Error obteniendo ventas de Supabase:', err.message);
+      }
+    }
     return localStore.ventas.slice(0, limit);
   },
 
@@ -507,10 +559,31 @@ const Database = {
   // ESTADÍSTICAS DE DEMANDA DE PRODUCTOS
   // -------------------------------------------------------------
   async getDemandStatistics(options = {}) {
-    // Collect all sales details
-    const details = localStore.detalle_ventas || [];
-    const products = localStore.productos || [];
-    const sales = localStore.ventas || [];
+    let details = localStore.detalle_ventas || [];
+    let products = localStore.productos || [];
+    let sales = localStore.ventas || [];
+
+    // Si Supabase está activo, consultar tablas de Supabase
+    if (this.isSupabaseActive()) {
+      try {
+        const [pRes, sRes, dRes] = await Promise.all([
+          supabase.from('productos').select('*'),
+          supabase.from('ventas').select('*'),
+          supabase.from('detalle_ventas').select('*')
+        ]);
+        if (!pRes.error && pRes.data && pRes.data.length > 0) {
+          products = pRes.data;
+        }
+        if (!sRes.error && sRes.data && sRes.data.length > 0) {
+          sales = sRes.data;
+        }
+        if (!dRes.error && dRes.data && dRes.data.length > 0) {
+          details = dRes.data;
+        }
+      } catch (err) {
+        console.warn('Error leyendo estadísticas de Supabase, usando local:', err.message);
+      }
+    }
 
     // Filter by date range if provided
     let filteredDetails = details;
