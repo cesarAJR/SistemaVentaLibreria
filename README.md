@@ -96,3 +96,7 @@ Para conectar tu proyecto de Supabase en la nube:
    SUPABASE_BUCKET=productos-fotos
    ```
 4. Reinicia el servidor con `npm start`. La aplicación detectará automáticamente Supabase y la insignia superior cambiará a **"🟢 Supabase Activo"**.
+
+## Web Page
+https://sistema-venta-libreria.vercel.app
+   
