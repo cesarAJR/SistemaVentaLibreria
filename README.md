@@ -85,11 +85,9 @@ La aplicación estará disponible en: **`http://localhost:3000`**
 Para conectar tu proyecto de Supabase en la nube:
 
 1. Crea un proyecto en [Supabase](https://supabase.com/).
-2. Dirígete al **SQL Editor** en Supabase y ejecuta el contenido de [`supabase_schema.sql`](file:///Users/cesarjr/Documents/Cesar/DMC/VibeConding/Antigravity/proyectoFinal/supabase_schema.sql). Esto creará:
-   - La tabla `productos` con restricciones de integridad y clave única en `codigo`.
-   - Las tablas `ventas` y `detalle_ventas`.
-   - La función transaccional `registrar_venta_transaccional` con bloqueo de filas (`FOR UPDATE`) para asegurar decrementos atómicos de stock.
-   - El bucket de almacenamiento `productos-fotos` con políticas de lectura y escritura.
+2. Dirígete al **SQL Editor** en Supabase y ejecuta:
+   - Primero, el esquema: [`supabase_schema.sql`](file:///Users/cesarjr/Documents/Cesar/DMC/VibeConding/Antigravity/proyectoFinal/supabase_schema.sql). Esto creará las tablas, índices, funciones transaccionales y el bucket de fotos.
+   - Opcionalmente, los datos iniciales: [`supabase_seed.sql`](file:///Users/cesarjr/Documents/Cesar/DMC/VibeConding/Antigravity/proyectoFinal/supabase_seed.sql) para poblar el catálogo de libros y el historial de ventas inicial.
 3. Copia tus credenciales en el archivo `.env`:
    ```env
    PORT=3000
